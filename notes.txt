@@ -1,0 +1,11 @@
+Request → authMiddleware
+            ↓
+     valid token?
+        ↓      ↓
+      NO       YES
+      ↓         ↓
+   401 error   attach userId
+                  ↓
+                next()
+                  ↓
+             Route handler runs
