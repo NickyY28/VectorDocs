@@ -10,14 +10,15 @@ const userSchema = new mongoose.Schema(
     {timestamps: true}
 );
 
-//hash password before saving
+//hash password before saving-- middleware hook in mongoose :“Before any user document is saved to the database, run this function.”
+// when does it run? whenever you do :await user.save();
 userSchema.pre("save", async function(next){
-    if(!this.isModified("password")) return next();
+    if(!this.isModified("password")) return next(); // if password hasn't changes,skip hashing
     this.password = await bcrypt.hash(this.password, 10);
     next();
 });
 
-userSchema.method.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function(candidatePassword) {
     return bcrypt.compare(candidatePassword, this.password);
 };
 
