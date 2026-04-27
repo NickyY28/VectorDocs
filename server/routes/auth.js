@@ -1,10 +1,11 @@
 import express from "express";
+import { register,login, getMe } from "../controllers/authController";
+import authMiddleware from"../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-//test route
-router.get("/", (req,res)=>{
-    res.json({message:"auth route working"});
-});
+router.post("/register", register);
+router.post("/login", login);
+router.get("/me", authMiddleware, getMe);
 
 export default router;
