@@ -2,13 +2,13 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
 const generateToken = (userId) =>
-  jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: "7d" });
+  jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: "7d" }); //when user logs in/signup -> we gen token -> send token to frontend -> frontend sends it with every request -> authorization : bearer <token> -> bacend verifies and user gets identified 
+//how token gets verified? with help of middleware
 
 // POST /api/auth/register
 export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
-
     if (!name || !email || !password)
       return res.status(400).json({ message: "All fields are required" });
 

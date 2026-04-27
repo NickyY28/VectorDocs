@@ -9,3 +9,18 @@ Request → authMiddleware
                 next()
                   ↓
              Route handler runs
+
+Status codes->
+CRUD mapping:
+GET → 200
+POST → 201
+PUT/PATCH → 200
+DELETE → 204
+Auth errors:
+401 → Not logged in
+403 → No permission
+Validation:
+400 → Bad input
+409 → Duplicate
+Server:
+500 → Something broke

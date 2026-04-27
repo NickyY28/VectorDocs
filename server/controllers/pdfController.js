@@ -14,11 +14,19 @@ export const uploadPDF = async (req, res) => {
       return res.status(400).json({ message: "No file uploaded" });
 
     const collectionId = `pdf_${req.userId}_${uuidv4().split("-")[0]}`;
+    //uuidv4()
+  // This generates a random unique ID like:
+  // 550e8400-e29b-41d4-a716-446655440000
+  // uuidv4().split("-")[0]
+  // Takes only first chunk:
+  // 550e8400
+  // Final result looks like:
+  // pdf_123abc_550e8400
 
     // Tell Python AI service to process this PDF
     const aiResponse = await axios.post(`${AI_SERVICE_URL}/ingest`, {
-      file_path: req.file.path,
-      collection_id: collectionId,
+      file_path: req.file.path, //where PDF is stored on disk
+      collection_id: collectionId, //how AI should group/store embeddings
     });
 
     const pdf = await PDF.create({
