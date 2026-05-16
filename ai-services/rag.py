@@ -1,7 +1,7 @@
 import fitz  # PyMuPDF — imported as 'fitz' (its internal name)
 import uuid
 import httpx
-from embedder import get_embedding, get_embeddings_batch
+from embedder import get_embedding, get_embeddings_batch, EMBED_MODEL
 from vectorstore import add_chunks, query_collection
 
 OLLAMA_URL = "http://localhost:11434"
