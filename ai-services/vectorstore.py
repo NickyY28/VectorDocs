@@ -1,7 +1,7 @@
 import chromadb
 
-# PersistentClient saves data to disk so vectors survive restarts.
-# Without this, ChromaDB runs in-memory and you lose everything on shutdown.
+# PersistentClient saves vectors to disk so they survive restarts
+# Without this, ChromaDB runs in-memory and you lose everything on shutdown
 client = chromadb.PersistentClient(path="./chroma_db")
 
 
@@ -10,11 +10,10 @@ def get_or_create_collection(collection_id: str):
     Get existing or create new ChromaDB collection for a PDF.
 
     WHY cosine similarity?
-    - Text embeddings are high-dimensional vectors (768 dims for nomic-embed-text)
-    - Cosine measures the ANGLE between vectors, not their length
-    - Two sentences meaning the same thing will point in the same direction
-      even if one is long and one is short
-    - This makes cosine better than euclidean distance for semantic text search
+    Text embeddings are high-dimensional vectors (768 dims for nomic-embed-text).
+    Cosine measures the ANGLE between vectors, not their length.
+    Two sentences meaning the same thing point in the same direction
+    even if one is long and one is short — cosine handles this correctly.
     """
     return client.get_or_create_collection(
         name=collection_id,
@@ -27,9 +26,9 @@ def add_chunks(collection_id: str, chunks: list[dict]):
     Store embedded chunks in ChromaDB.
 
     ChromaDB stores 3 things per chunk:
-    - documents: the raw text (so we can return it to the user)
-    - embeddings: the vector (so we can do similarity search)
-    - metadatas: extra info like page number (so we can cite sources)
+    - documents: the raw text (returned to user as snippet)
+    - embeddings: the vector (used for similarity search)
+    - metadatas: extra info like page number (used for citations)
     - ids: unique identifier per chunk (required by ChromaDB)
     """
     collection = get_or_create_collection(collection_id)
@@ -50,18 +49,15 @@ def query_collection(collection_id: str, query_embedding: list[float], n_results
     ChromaDB uses HNSW (Hierarchical Navigable Small World) graph index.
     Instead of comparing query against every chunk (slow O(n)),
     it navigates a graph of nearby vectors (fast O(log n)).
-    At scale this is the difference between milliseconds and minutes.
 
-    Returns: documents, distances, metadatas
-    distances: 0.0 = identical, 2.0 = completely opposite (cosine space)
-    We convert: similarity_score = 1 - distance  (so 1.0 = perfect match)
+    Returns distances — we convert to similarity scores:
+    score = 1 - distance  (so 1.0 = perfect match, 0.0 = no match)
     """
     collection = get_or_create_collection(collection_id)
     count = collection.count()
     if count == 0:
         raise ValueError(f"Collection '{collection_id}' is empty")
 
-    # Can't retrieve more results than chunks exist
     actual_n = min(n_results, count)
 
     results = collection.query(
