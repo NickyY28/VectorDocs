@@ -1,26 +1,165 @@
-Request → authMiddleware
-            ↓
-     valid token?
-        ↓      ↓
-      NO       YES
-      ↓         ↓
-   401 error   attach userId
-                  ↓
-                next()
-                  ↓
-             Route handler runs
+# DocMind - PDF RAG Application File Directory & Summaries
 
-Status codes->
-CRUD mapping:
-GET → 200
-POST → 201
-PUT/PATCH → 200
-DELETE → 204
-Auth errors:
-401 → Not logged in
-403 → No permission
-Validation:
-400 → Bad input
-409 → Duplicate
-Server:
-500 → Something broke
+## 📁 AI Service (Python / FastAPI / Ollama RAG)
+
+1. ai-services/main.py
+- Starts the FastAPI local web server on port 8000
+- Implements `/health` endpoint to verify service status
+- Implements `/ingest` endpoint to trigger parsing, chunking, embedding, and storage of a PDF on disk
+- Implements `/query` endpoint to handle RAG similarity retrieval and local LLM responses
+- Implements `/collection/{collection_id}` DELETE endpoint to wipe vector database collections
+
+2. ai-services/embedder.py
+- Converts text passages into high-dimensional numerical vectors (embeddings)
+- Communicates directly with local Ollama `/api/embeddings` instance
+- Uses `nomic-embed-text` (768-dimensional local model) for optimal quality, speed, and 8192-token context window
+- Handles sequential batching for multi-chunk document arrays during ingestion
+
+3. ai-services/rag.py
+- Handles core RAG (Retrieval-Augmented Generation) ingestion and query workflows
+- Extracts raw text per page using PyMuPDF (`fitz`) for speed and layout integrity
+- Chunks text blocks using sliding window overlap (800 character size, 150 overlap) to preserve context boundaries
+- Connects embeddings and documents together into a prompt template, instructing the LLM to answer strictly from provided context
+- Queries local `llama3.2` LLM via Ollama and enforces a similarity score threshold (0.3 cosine similarity) to guard against AI hallucinations
+
+4. ai-services/vectorstore.py
+- Interfaces with local persistent ChromaDB client saving vector datasets on disk (under `./chroma_db`)
+- Uses cosine similarity space (`hnsw:space: cosine`) to compare angles of high-dimensional vectors
+- Inserts parsed text documents, metadata mapping (e.g. page citations), and embeddings into collection instances
+- Executes HNSW (Hierarchical Navigable Small World) query searches to fetch the top-3 most similar chunks
+
+5. ai-services/requirements.txt
+- Pinpoints Python environment library dependencies: FastAPI, PyMuPDF, ChromaDB, HTTPX, Uvicorn, Pydantic, etc.
+
+---
+
+## 📁 Node.js Backend Server (Express / Mongoose / MongoDB)
+
+1. server/index.js
+- Entry point of the Express.js application
+- Mounts essential middleware including CORS (origin-restricted) and JSON parsing
+- Configures base route scopes: `/api/auth`, `/api/pdf`, `/api/chat`
+- Initializes MongoDB connection and boots the HTTP listener on the configured environment PORT
+
+2. server/db/db.js
+- Manages Mongoose helper function to establish a connection to MongoDB
+- Gracefully logs DB connection status and immediately terminates process (`process.exit(1)`) on startup failures
+
+3. server/middleware/authMiddleware.js
+- Implements request authorization security layer
+- Extracts and validates incoming `Bearer` tokens from the HTTP Authorization headers using JWT
+- Resolves valid tokens, extracts active user identifiers (`userId`), and passes control to subsequent controllers via `next()`
+
+4. server/models/user.js
+- Houses user schema storing user profiles: name, unique email, and password string
+- Employs a pre-save Mongoose hook to securely hash passwords with `bcryptjs` before DB insertion
+- Provides schema method helper (`comparePassword`) to compare incoming raw inputs with the hashed DB credential
+
+5. server/models/PDF.js
+- Defines the schema representing uploaded documents
+- Stores document metadata including the owning userID relation, original name, physical disk name, page counts, vector status, and the Python-facing unique `collectionId`
+
+6. server/models/chatHistory.js
+- Models persistent messaging threads associated with uploaded PDFs
+- Houses a sub-document array of messages capturing user questions, assistant answers, and specific source PDF citation chunks (snippets, scores, pages)
+
+7. server/routes/auth.js
+- Registers authentication HTTP paths: POST `/register`, POST `/login`, and GET `/me` (protected profile route)
+
+8. server/routes/pdf.js
+- Maps PDF operations with authentication checks
+- Handles file uploads using `multer` disk storage, saving PDFs locally into `uploads/` with generated UUID names, enforcing a 20MB limit, and verifying PDF mime-types
+
+9. server/routes/chat.js
+- Exposes chat management paths: GET `/:pdfId` for history retrieval, POST `/:pdfId` for queries, and DELETE `/:pdfId` to clear message logs
+
+10. server/controllers/authController.js
+- Implements registration flows checking duplicate accounts, login validation, and JWT token issuance (7-day lifespan)
+- Resolves profile info excluding the encrypted password for current sessions
+
+11. server/controllers/pdfController.js
+- Orchestrates PDF workflow requests
+- Triggers incoming PDF file uploads and passes instructions to the Python AI service `/ingest` route
+- Creates DB document records upon successful vector store completion
+- Safely wipes files from local server disk, cleans up chat records, and orders the AI service to drop the ChromaDB collection upon file deletion
+
+12. server/controllers/chatController.js
+- Handles query exchanges by sending the question and corresponding `collectionId` to the Python AI service `/query` endpoint
+- Records and updates conversation history (questions, answers, source chunk details) under a given PDF in MongoDB
+
+---
+
+## 📁 React Frontend Client (Vite / React / TailwindCSS)
+
+1. client/index.html
+- Entry-point HTML document referencing the main script and serving as the DOM mounting target
+
+2. client/vite.config.js
+- Custom configuration options directing Vite build, server, and React setups
+
+3. client/eslint.config.js
+- Code-quality validation rules enforcing clean practices across frontend components
+
+4. client/package.json
+- Catalogues client dependencies (React, React Router, TailwindCSS, Zustand, Axios, Lucide Icons, etc.)
+
+5. client/src/main.jsx
+- Mounts and boots the top-level React application in the DOM tree, wrapped in StrictMode
+
+6. client/src/index.css
+- Global styling sheet directing TailwindCSS utility definitions
+
+7. client/src/App.css
+- Contains custom styling overrides, animation classes, scrolling states, and dark aesthetic layouts
+
+8. client/src/App.jsx
+- Handles frontend client routing hierarchy using `react-router-dom`
+- Implements Route Guards: `ProtectedRoute` (protects pages if unauthenticated) and `AuthRoute` (forces logged-in users away from registration pages)
+- Serves page entry pathways for Login, Register, and Dashboard routes
+
+9. client/src/utils/api.js
+- Configures an Axios instance pointing to the Express server API base URL
+- Configures request interceptor middleware to automatically attach the stored authentication JWT token into all outgoing headers
+
+10. client/src/store/authStore.js
+- Employs Zustand store hook to manage global authentication state (login, token validation, user profile, and state clearing upon logout)
+
+11. client/src/store/pdfStore.js
+- Employs Zustand store hook to track the active PDF selection globally across pages, sidebars, and chat containers
+
+12. client/src/hooks/useAuth.js (Implied / Auth Forms logic)
+- Directly handles forms validation, registration calls, and state dispatching on the Login/Register screens
+
+13. client/src/hooks/usePDFs.js
+- Custom React state-hook managing files retrieval, async uploading with local server, and deletion processes
+
+14. client/src/hooks/useChat.js
+- Custom React state-hook managing full conversational histories, pending query indicators, and network message clearing
+
+15. client/src/components/Navbar.jsx
+- Displays top bar header branding, active logged-in user identification card, and instant log-out action buttons
+
+16. client/src/components/Sidebar.jsx
+- Implements document controller drawer featuring a custom drag-and-drop zone for uploading files, spinner loading overlays, and lists existing user files
+
+17. client/src/components/PDFCard.jsx
+- Individual PDF file metadata visual representation including file size, page citations, select controls, and hover-triggered deletion buttons
+
+18. client/src/components/ChatPanel.jsx
+- Renders the interactive conversation container with custom greeting suggestions, dynamic typing indicators, scroll positioning, and message input handlers
+
+19. client/src/components/ChatMessage.jsx
+- Represents individual message bubbles distinguishing between user questions and AI chatbot replies
+- Renders page index citations and opens side-drawers showing matching content context
+
+20. client/src/components/ChunkViewer.jsx
+- Sidebar details component providing interactive references to source paragraph snippets extracted from the PDF, displaying precise similarity scores
+
+21. client/src/pages/Login.jsx
+- Clean, responsive dashboard login credential form providing login state persistence and authentication redirects
+
+22. client/src/pages/Register.jsx
+- Dynamic registration screen providing account creation logic, form validations, and routing redirection
+
+23. client/src/pages/Dashboard.jsx
+- Orchestrator dashboard layout binding the Navbar, Sidebar, and ChatPanel together inside a unified grid
